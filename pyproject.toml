@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "fastapi-boilerplate"
+name = "sepehr swift"
 version = "0.1.0"
 description = "FastAPI app integrating PayPing and Nobitex"
 authors = ["Sepehr Masihpour"]
