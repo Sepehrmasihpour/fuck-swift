@@ -1,27 +1,27 @@
-"""Application configuration using environment variables.
+"""Configuration module for application settings.
 
-This module loads values from a `.env` file and exposes them via a
-`Settings` object. Adjust defaults and add error handling as necessary
-for your environment.
+This module loads environment variables from a ``.env`` file using
+``python-dotenv`` and exposes a :data:`settings` object for use across the
+project.
 """
 
 from dotenv import load_dotenv
-from pydantic import BaseSettings
+from pydantic import BaseSettings, Field
 
-# Load variables from .env file into the environment
+# Load variables from .env into environment
 load_dotenv()
 
 
 class Settings(BaseSettings):
-    """Configuration values for external services."""
+    """Application settings derived from environment variables."""
 
-    payping_client_id: str
-    payping_client_secret: str
-    nobitex_api_key: str
-    nobitex_api_secret: str | None = None
-    nobitex_base_url: str = "https://api.nobitex.ir"
-    testnet: bool = False
+    payping_client_id: str = Field(..., env="PAYPING_CLIENT_ID")
+    payping_client_secret: str = Field(..., env="PAYPING_CLIENT_SECRET")
+    nobitex_api_key: str = Field(..., env="NOBITEX_API_KEY")
+    nobitex_base_url: str = Field(..., env="NOBITEX_BASE_URL")
+    nobitex_sheba: str = Field(..., env="NOBITEX_SHEBA")
+    rpc_url: str = Field(..., env="RPC_URL")
 
 
-# Expose a singleton settings object
+# Instantiate a global settings object
 settings = Settings()

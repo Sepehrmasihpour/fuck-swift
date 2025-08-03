@@ -1,88 +1,92 @@
-"""FastAPI application wiring PayPing and Nobitex clients."""
+"""Main FastAPI application entrypoint."""
 
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI, HTTPException
+import httpx
 
 from config import settings
 from models import (
     CreatePaymentRequest,
     CreatePaymentResponse,
+    NobitexBalance,
+    OrderRequest,
+    OrderResponse,
     PayoutRequest,
     PayoutResponse,
     VerifyPaymentRequest,
     VerifyPaymentResponse,
 )
-from payping_client import create_payment, create_payout, verify_payment
-from nobitex_client import get_balance, place_order
+import nobitex_client
+import payping_client
 
-app = FastAPI(title="IRR to USDT Pipeline")
-
-
-@app.on_event("startup")
-async def startup() -> None:
-    """Ensure settings are loaded at startup."""
-
-    _ = settings
+app = FastAPI(title="IRR to USDT Swap")
 
 
-# Routers
-payping_router = APIRouter(prefix="/payping", tags=["payping"])
-nobitex_router = APIRouter(prefix="/nobitex", tags=["nobitex"])
+@app.post("/payping/create", response_model=CreatePaymentResponse)
+async def create_payment(req: CreatePaymentRequest) -> CreatePaymentResponse:
+    """Create a payment using PayPing."""
+
+    try:
+        return await payping_client.create_payment(req)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@payping_router.post("/create", response_model=CreatePaymentResponse)
-async def payping_create(req: CreatePaymentRequest) -> CreatePaymentResponse:
-    """Create a PayPing payment."""
-
-    return await create_payment(req)
-
-
-@payping_router.post("/verify", response_model=VerifyPaymentResponse)
-async def payping_verify(req: VerifyPaymentRequest) -> VerifyPaymentResponse:
+@app.post("/payping/verify", response_model=VerifyPaymentResponse)
+async def verify_payment(req: VerifyPaymentRequest) -> VerifyPaymentResponse:
     """Verify a PayPing payment."""
 
-    return await verify_payment(req)
+    try:
+        return await payping_client.verify_payment(req)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@payping_router.post("/payout", response_model=PayoutResponse)
-async def payping_payout(req: PayoutRequest) -> PayoutResponse:
-    """Initiate a payout through PayPing."""
+@app.post("/payping/payout", response_model=PayoutResponse)
+async def create_payout(req: PayoutRequest) -> PayoutResponse:
+    """Create a payout via PayPing."""
 
-    return await create_payout(req)
-
-
-@nobitex_router.get("/balance")
-async def nobitex_balance() -> dict:
-    """Get Nobitex account balance."""
-
-    return await get_balance()
+    try:
+        return await payping_client.create_payout(req)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@nobitex_router.post("/order")
-async def nobitex_order(symbol: str, order_type: str, amount: int) -> dict:
+@app.get("/nobitex/balance", response_model=NobitexBalance)
+async def get_balance() -> NobitexBalance:
+    """Retrieve balances from Nobitex."""
+
+    try:
+        return await nobitex_client.get_balance()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/nobitex/order", response_model=OrderResponse)
+async def place_order(req: OrderRequest) -> OrderResponse:
     """Place an order on Nobitex."""
 
-    return await place_order(symbol, order_type, amount)
+    try:
+        return await nobitex_client.place_order(req)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/webhooks/payping")
-async def payping_webhook(payload: VerifyPaymentRequest) -> dict:
-    """Handle PayPing webhook callbacks."""
+async def payping_webhook(req: VerifyPaymentRequest):
+    """Handle PayPing webhook by verifying and paying out to Nobitex."""
 
-    # 1. Verify the payment
-    verification = await verify_payment(payload)
-
-    # 2. Payout to Nobitex's Sheba
-    payout_request = PayoutRequest(
-        sheba="NOBITEX_SHEBA",  # TODO: replace with actual Sheba
-        amount=verification.amount,
-        description="Automatic payout",
-    )
-    payout_response = await create_payout(payout_request)
-
-    # 3. Return summary
-    return {"verification": verification.dict(), "payout": payout_response.dict()}
-
-
-# Mount routers
-app.include_router(payping_router)
-app.include_router(nobitex_router)
+    try:
+        verify_resp = await payping_client.verify_payment(req)
+        payout_req = PayoutRequest(
+            sheba=settings.nobitex_sheba,
+            amount=verify_resp.amount,
+            description=f"Webhook payout for {req.code}",
+        )
+        payout_resp = await payping_client.create_payout(payout_req)
+        return {
+            "status": "processed",
+            "payment": verify_resp.dict(),
+            "payout": payout_resp.dict(),
+        }
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

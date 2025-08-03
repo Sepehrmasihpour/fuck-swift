@@ -1,34 +1,70 @@
-"""Pydantic models for PayPing and Nobitex interactions."""
+"""Pydantic data models used across the application."""
 
-from pydantic import BaseModel
+from typing import Dict
+
+from pydantic import BaseModel, HttpUrl
 
 
 class CreatePaymentRequest(BaseModel):
-    amount_irr: int
+    """Request payload for creating a PayPing payment."""
+
     order_id: str
-    callback_url: str
+    amount_irr: int
+    callback_url: HttpUrl
 
 
 class CreatePaymentResponse(BaseModel):
-    payment_url: str
+    """Response returned after creating a PayPing payment."""
+
     code: str
+    payment_url: HttpUrl
 
 
 class VerifyPaymentRequest(BaseModel):
+    """Request payload for verifying a PayPing payment."""
+
     code: str
 
 
 class VerifyPaymentResponse(BaseModel):
+    """Response returned after verifying a PayPing payment."""
+
     status: str
     amount: int
 
 
 class PayoutRequest(BaseModel):
+    """Request payload for creating a payout via PayPing."""
+
     sheba: str
     amount: int
     description: str
 
 
 class PayoutResponse(BaseModel):
+    """Response returned after creating a PayPing payout."""
+
     payout_id: str
     status: str
+
+
+class NobitexBalance(BaseModel):
+    """Model representing balance information from Nobitex."""
+
+    assets: Dict[str, float]
+
+
+class OrderRequest(BaseModel):
+    """Request payload for placing an order on Nobitex."""
+
+    symbol: str
+    type: str
+    amount: int
+
+
+class OrderResponse(BaseModel):
+    """Response returned after placing an order on Nobitex."""
+
+    order_id: str
+    status: str
+    filled: float
