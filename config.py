@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     nobitex_base_url: str = Field(..., env="NOBITEX_BASE_URL")
     nobitex_sheba: str = Field(..., env="NOBITEX_SHEBA")
     rpc_url: str = Field(..., env="RPC_URL")
+    foregign_hot_wallet_address: str = Field(..., env="FOREIGN_HOT_WALLET_ADDRESS")
 
 
 # Instantiate a global settings object
